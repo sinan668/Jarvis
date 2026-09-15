@@ -13,8 +13,18 @@
 python-dotenv>=1.0.0          # Load API keys from .env file
 
 # ── Voice Input (Step 2) ──────────────────────────────────────────────────────
-# SpeechRecognition>=3.10.0   # [FUTURE] Microphone → text (Google STT, Sphinx)
-# PyAudio>=0.2.14             # [FUTURE] Microphone hardware driver
+SpeechRecognition>=3.10.0   # High-level speech-to-text (Google STT, Sphinx)
+#
+# PyAudio is required for microphone access. Install via the system package
+# manager (NOT pip) for best compatibility:
+#
+#   Linux  (Debian/Ubuntu): sudo apt install python3-pyaudio
+#   macOS                 : brew install portaudio && pip install pyaudio
+#   Windows               : pip install pyaudio
+#
+# Optional: pocketsphinx for offline speech recognition (no internet needed)
+#   pip install pocketsphinx
+
 
 # ── Voice Output (Step 2) ─────────────────────────────────────────────────────
 # pyttsx3>=2.90               # [FUTURE] Offline text-to-speech engine

@@ -54,50 +54,102 @@ jarvis-assistant/
 
 - Python **3.10 or newer** (uses `str | None` type syntax)
 - `pip` package manager
+- A working microphone (for voice mode)
 
 ### 2. Clone / Download the project
 
 ```bash
-# If using git:
 git clone <your-repo-url> jarvis-assistant
 cd jarvis-assistant
-
-# Or just open the folder you already have.
 ```
 
-### 3. Create a virtual environment (recommended)
+### 3. Install Step 1 dependencies (core)
 
 ```bash
-python -m venv venv
-
-# Activate it:
-source venv/bin/activate        # Linux / macOS
-venv\Scripts\activate.bat       # Windows CMD
-venv\Scripts\Activate.ps1       # Windows PowerShell
+pip install python-dotenv
 ```
 
-### 4. Install dependencies
+### 4. Install Step 2 dependencies (voice input)
 
+**Linux (Debian / Ubuntu):**
 ```bash
-pip install -r requirements.txt
+# PyAudio — must be installed via apt (pip alone won't work without portaudio headers)
+sudo apt install python3-pyaudio
+
+# SpeechRecognition — install via pip
+pip install SpeechRecognition
 ```
 
-### 5. Configure environment variables (optional for now)
+**macOS:**
+```bash
+brew install portaudio
+pip install SpeechRecognition pyaudio
+```
+
+**Windows:**
+```bash
+pip install SpeechRecognition pyaudio
+```
+
+> **Optional (offline speech recognition — no internet needed):**
+> ```bash
+> pip install pocketsphinx
+> ```
+
+### 5. Configure environment variables (optional)
 
 ```bash
 cp .env.example .env
 # Edit .env if you want to change the assistant name, log level, etc.
-# No API keys are needed for the foundation step.
 ```
 
-### 6. Run JARVIS
+### 6. Test voice input (recommended first step)
+
+Run the dedicated voice test **before** starting the full assistant:
+
+```bash
+python test_voice_input.py
+```
+
+Expected output:
+```
+────────────────────────────────────────────────────────────
+  Step 1/4 — Checking required libraries
+────────────────────────────────────────────────────────────
+  ✓ SpeechRecognition 3.17.0 imported successfully
+  ✓ PyAudio 0.2.13 imported successfully
+
+────────────────────────────────────────────────────────────
+  Step 2/4 — Listing audio input devices
+────────────────────────────────────────────────────────────
+  [0] HDA Intel PCH: ALC3246 Analog (hw:0,0)  (max 2 channels, 44100 Hz)
+  ✓ 1 input device(s) detected
+
+────────────────────────────────────────────────────────────
+  Step 3/4 — Calibrating microphone
+────────────────────────────────────────────────────────────
+  ✓ Calibrated. Energy threshold = 412
+
+────────────────────────────────────────────────────────────
+  Step 4/4 — Voice capture test (3 attempts)
+────────────────────────────────────────────────────────────
+[JARVIS] Listening...
+  ✓ [JARVIS] You said: hello jarvis
+
+  ✅ JARVIS voice input is working correctly!
+  You can now run the full assistant with:  python main.py
+```
+
+### 7. Run the full JARVIS assistant
 
 ```bash
 python main.py
 ```
 
-You will see the startup banner and a `You:` prompt.
-Type a message and press **Enter**. Type `exit` to quit.
+- **With microphone:** JARVIS automatically enters voice mode, shows `[JARVIS] Listening...`, and prints what it hears.
+- **Without microphone / missing library:** JARVIS gracefully falls back to keyboard input mode.
+
+Type or say `help` to list available commands. Type or say `exit` to quit.
 
 ---
 

@@ -10,8 +10,11 @@ What happens at startup:
   1. Load configuration from .env (if present).
   2. Initialise all modules: logging, voice, AI brain, command router.
   3. Print a startup banner.
-  4. Enter the main interaction loop (text-based for now).
-  5. Exit cleanly when the user says "exit" / "quit" / "bye".
+  4. Calibrate the microphone (if available).
+  5. Enter the main interaction loop:
+       - If microphone is ready  → listen for speech, print + route it.
+       - If microphone is absent → fall back to keyboard input.
+  6. Exit cleanly when the user says/types "exit" / "quit" / "bye".
 """
 
 import sys
@@ -41,10 +44,6 @@ def print_banner(assistant_name: str) -> None:
     """
     print(banner)
     print(f"  Assistant : {assistant_name}")
-    print(f"  Mode      : Text (voice coming in Step 2)")
-    print(f"  Type 'help' to see available commands.")
-    print(f"  Type 'exit' to shut down.\n")
-    print("─" * 60)
 
 
 def main() -> None:
@@ -73,22 +72,56 @@ def main() -> None:
     logger.info("Running on %s %s (Python %s)",
                 os_info["system"], os_info["release"], os_info["python_version"])
 
-    # ── 4. Startup greeting ────────────────────────────────────────────────────
+    # ── 4. Startup greeting & mic calibration ─────────────────────────────────
     print_banner(cfg.assistant_name)
+
+    # Decide which input mode to use
+    voice_mode = listener.is_available()
+    if voice_mode:
+        print(f"  Mode      : 🎙️  Voice  (speak to {cfg.assistant_name})")
+    else:
+        print(f"  Mode      : ⌨️  Text   (microphone unavailable)")
+    print(f"  Say/type 'help' to list commands.")
+    print(f"  Say/type 'exit' to shut down.\n")
+    print("─" * 60)
+
     greeting = f"{greeting_by_time()}, sir. {cfg.assistant_name} is online."
     speaker.speak(format_response(greeting, cfg.assistant_name))
 
+    # Calibrate mic once at startup (harmless if mic not available)
+    if voice_mode:
+        listener.calibrate()
+
     # ── 5. Main interaction loop ───────────────────────────────────────────────
-    logger.info("Entering main loop — waiting for input.")
+    logger.info(
+        "Entering main loop — mode=%s.",
+        "voice" if voice_mode else "text",
+    )
+
     while True:
         try:
-            # In text mode the user types; in voice mode listener.listen() fills this
-            user_input = input("\n🎙️  You: ").strip()
+            if voice_mode:
+                # ── Voice path: microphone → speech-to-text ────────────────────
+                user_input = listener.listen()
 
-            if not user_input:
-                continue  # ignore blank lines
+                # If listen() returned empty (silence / error) keep looping
+                if not user_input:
+                    continue
 
-            logger.info("User input: %r", user_input)
+                logger.info("Voice input: %r", user_input)
+
+            else:
+                # ── Text fallback: keyboard input ─────────────────────────────
+                try:
+                    user_input = input("\n⌨️  You: ").strip()
+                except EOFError:
+                    # Piped input finished
+                    break
+
+                if not user_input:
+                    continue
+
+                logger.info("Text input: %r", user_input)
 
             # Route the input — returns True when the user wants to exit
             should_exit = router.route(user_input)
