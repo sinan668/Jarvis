@@ -10,21 +10,20 @@ Step 2 — Voice Input:
   • Offline fallback    : PocketSphinx (if installed).
   • Handles all common error conditions gracefully so JARVIS never crashes.
 
-Error conditions handled:
-  - Microphone not found / no permission
-  - No speech detected (silence / timeout)
-  - Google API unreachable (network error)
-  - Unintelligible audio
-  - Any unexpected hardware exception
+Step 3 — Wake Word Integration:
+  • Adds `verbose: bool = True` parameter to `listen()`.
+  • Adds `listen_passive()` method to record audio silently without printing banners.
 
 Usage:
     listener = Listener(language="en-US")
     listener.calibrate()          # call once at startup
-    text = listener.listen()      # blocks until speech is heard (or timeout)
-    print(text)                   # "" on failure, transcribed text on success
+    text = listener.listen()      # active listening (prints prompts)
+    text = listener.listen_passive() # passive listening for wake word
 """
 
 import sys
+import contextlib
+import os
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -52,18 +51,11 @@ except ImportError:
         "  Windows: pip install pyaudio"
     )
 
-# ── Helper: silences ALSA/JACK low-level driver noise on Linux ────────────────
-import contextlib
-import os
 
+# ── Helper: silences ALSA/JACK low-level driver noise on Linux ────────────────
 @contextlib.contextmanager
 def _suppress_alsa_stderr():
-    """Redirect stderr briefly to suppress harmless ALSA/JACK driver messages.
-
-    PyAudio enumerates every possible audio backend on open, which floods
-    the terminal with 'Unknown PCM' and 'Cannot connect to JACK' lines.
-    These are not errors — the primary HDA Intel device still works fine.
-    """
+    """Redirect stderr briefly to suppress harmless ALSA/JACK driver messages."""
     devnull_fd = os.open(os.devnull, os.O_WRONLY)
     old_stderr  = os.dup(2)
     os.dup2(devnull_fd, 2)
@@ -82,16 +74,11 @@ class ListenerError(Exception):
 class Listener:
     """Captures microphone input and converts speech to text.
 
-    The class degrades gracefully when libraries are missing or when the
-    microphone is unavailable — it logs a warning and returns "" instead
-    of crashing the assistant.
-
     Attributes:
         language        : BCP-47 language code, e.g. "en-US".
         timeout         : Seconds to wait for speech to begin (None = forever).
         phrase_limit    : Max seconds to record a single phrase.
-        energy_threshold: Minimum mic energy considered as speech (auto-set
-                          after calibrate()).
+        energy_threshold: Minimum mic energy considered as speech.
         pause_threshold : Seconds of silence that ends a phrase.
         available       : True when all dependencies are ready.
     """
@@ -103,13 +90,6 @@ class Listener:
         phrase_limit: int = 10,
         pause_threshold: float = 0.8,
     ) -> None:
-        """
-        Args:
-            language      : BCP-47 speech recognition language code.
-            timeout       : Seconds to wait before giving up (None = wait forever).
-            phrase_limit  : Maximum length of a single captured phrase in seconds.
-            pause_threshold: Seconds of silence that mark the end of a phrase.
-        """
         self.language = language
         self.timeout = timeout
         self.phrase_limit = phrase_limit
@@ -119,7 +99,6 @@ class Listener:
         if self.available:
             self._recognizer = sr.Recognizer()
             self._recognizer.pause_threshold = pause_threshold
-            # Reduce false activations in noisy environments
             self._recognizer.dynamic_energy_threshold = True
             logger.info(
                 "Listener ready (language=%s, timeout=%ss, phrase_limit=%ss)",
@@ -134,16 +113,7 @@ class Listener:
     # ── Public API ─────────────────────────────────────────────────────────────
 
     def calibrate(self, duration: float = 1.5) -> None:
-        """Calibrate the recogniser to current ambient noise level.
-
-        Call this once at startup before the first listen() call.
-        It measures the background noise for `duration` seconds and sets
-        the energy threshold accordingly, so speech is detected accurately
-        in the current environment.
-
-        Args:
-            duration: How many seconds to sample ambient noise.
-        """
+        """Calibrate the recogniser to current ambient noise level."""
         if not self.available:
             logger.warning("calibrate() skipped — Listener not available.")
             return
@@ -158,7 +128,6 @@ class Listener:
             )
             print("[JARVIS] Microphone calibrated ✓")
         except OSError as exc:
-            # OSError is raised when no input device is found
             logger.error("Microphone not found during calibration: %s", exc)
             print("[JARVIS] ⚠ No microphone detected — running in text-only mode.")
             self.available = False
@@ -166,15 +135,12 @@ class Listener:
             logger.error("Unexpected error during calibration: %s", exc, exc_info=True)
             self.available = False
 
-    def listen(self) -> str:
+    def listen(self, verbose: bool = True) -> str:
         """Listen for a spoken phrase and return the transcribed text.
 
-        Workflow:
-          1. Open the microphone.
-          2. Wait for speech to begin (up to `timeout` seconds).
-          3. Record until a pause of `pause_threshold` seconds.
-          4. Send audio to Google Web Speech API for transcription.
-          5. Return the lower-cased text, or "" on any failure.
+        Args:
+            verbose: If True, print active listening prompts and recognized text.
+                     If False (passive/wake-word mode), listen silently.
 
         Returns:
             Lower-cased transcribed string, or "" if nothing was understood.
@@ -183,23 +149,24 @@ class Listener:
             logger.debug("listen() skipped — Listener not available.")
             return ""
 
-        print("[JARVIS] Listening...")
-        logger.info("Listening for speech (timeout=%s, phrase_limit=%s)...",
-                    self.timeout, self.phrase_limit)
+        if verbose:
+            print("[JARVIS] Listening...")
+        logger.info("Listening for speech (timeout=%s, phrase_limit=%s, verbose=%s)...",
+                    self.timeout, self.phrase_limit, verbose)
 
         try:
-            return self._capture_and_recognise()
+            return self._capture_and_recognise(verbose=verbose)
 
         except sr.WaitTimeoutError:
-            # No speech detected within `timeout` seconds
             logger.info("No speech detected within timeout.")
-            print("[JARVIS] No speech detected.")
+            if verbose:
+                print("[JARVIS] No speech detected.")
             return ""
 
         except OSError as exc:
-            # Microphone was unplugged or permissions revoked mid-session
             logger.error("Microphone I/O error: %s", exc)
-            print("[JARVIS] ⚠ Microphone error — check connection and permissions.")
+            if verbose:
+                print("[JARVIS] ⚠ Microphone error — check connection and permissions.")
             self.available = False
             return ""
 
@@ -207,20 +174,25 @@ class Listener:
             logger.error("Unexpected listen() error: %s", exc, exc_info=True)
             return ""
 
+    def listen_passive(self) -> str:
+        """Listen for speech silently without printing active banners.
+
+        Used by WakeWordDetector to listen for the wake word in the background.
+
+        Returns:
+            Lower-cased transcribed string, or "" if nothing was understood.
+        """
+        return self.listen(verbose=False)
+
     def is_available(self) -> bool:
         """Return True if the listener is ready to capture audio."""
         return self.available
 
     # ── Private helpers ────────────────────────────────────────────────────────
 
-    def _capture_and_recognise(self) -> str:
-        """Open the mic, record a phrase, and send it to a recogniser.
-
-        Returns:
-            Transcribed text string (lower-cased), or "" on failure.
-        """
+    def _capture_and_recognise(self, verbose: bool = True) -> str:
+        """Open the mic, record a phrase, and send it to a recogniser."""
         with _suppress_alsa_stderr(), sr.Microphone() as source:
-            # Record audio — blocks until speech ends or timeout fires
             audio = self._recognizer.listen(
                 source,
                 timeout=self.timeout,
@@ -230,66 +202,51 @@ class Listener:
         logger.debug("Audio captured (%d bytes). Sending to recogniser...",
                      len(audio.frame_data))
 
-        # ── Try Google Web Speech API (free, requires internet) ────────────────
-        return self._try_google(audio)
+        return self._try_google(audio, verbose=verbose)
 
-    def _try_google(self, audio) -> str:
-        """Attempt recognition using the free Google Web Speech API.
-
-        Args:
-            audio: sr.AudioData object from the microphone.
-
-        Returns:
-            Recognised text (lower-cased), or "" on failure.
-        """
+    def _try_google(self, audio, verbose: bool = True) -> str:
+        """Attempt recognition using the free Google Web Speech API."""
         try:
             text = self._recognizer.recognize_google(audio, language=self.language)
             text = text.lower().strip()
             logger.info("Google STT recognised: %r", text)
-            print(f"[JARVIS] You said: {text}")
+            if verbose:
+                print(f"[JARVIS] You said: {text}")
             return text
 
         except sr.UnknownValueError:
-            # Audio was captured but could not be understood
             logger.info("Google STT: speech unintelligible.")
-            print("[JARVIS] Sorry, I didn't understand that. Please try again.")
+            if verbose:
+                print("[JARVIS] Sorry, I didn't understand that. Please try again.")
             return ""
 
         except sr.RequestError as exc:
-            # Network error, quota exceeded, or API unavailable
             logger.warning("Google STT unavailable: %s. Trying offline fallback...", exc)
-            print("[JARVIS] ⚠ Google STT unreachable — trying offline recogniser...")
-            return self._try_sphinx(audio)
+            if verbose:
+                print("[JARVIS] ⚠ Google STT unreachable — trying offline recogniser...")
+            return self._try_sphinx(audio, verbose=verbose)
 
-    def _try_sphinx(self, audio) -> str:
-        """Offline fallback using PocketSphinx (if installed).
-
-        PocketSphinx works without internet but requires the
-        `pocketsphinx` package:  pip install pocketsphinx
-
-        Args:
-            audio: sr.AudioData object from the microphone.
-
-        Returns:
-            Recognised text (lower-cased), or "" if Sphinx is unavailable.
-        """
+    def _try_sphinx(self, audio, verbose: bool = True) -> str:
+        """Offline fallback using PocketSphinx (if installed)."""
         try:
             text = self._recognizer.recognize_sphinx(audio)
             text = text.lower().strip()
             logger.info("PocketSphinx recognised: %r", text)
-            print(f"[JARVIS] You said (offline): {text}")
+            if verbose:
+                print(f"[JARVIS] You said (offline): {text}")
             return text
 
         except sr.UnknownValueError:
             logger.info("PocketSphinx: speech unintelligible.")
-            print("[JARVIS] Sorry, I couldn't understand that.")
+            if verbose:
+                print("[JARVIS] Sorry, I couldn't understand that.")
             return ""
 
         except sr.RequestError:
-            # PocketSphinx not installed — no offline fallback available
             logger.warning("PocketSphinx not installed. No offline fallback.")
-            print(
-                "[JARVIS] ⚠ No internet and no offline recogniser available.\n"
-                "         Install PocketSphinx for offline support: pip install pocketsphinx"
-            )
+            if verbose:
+                print(
+                    "[JARVIS] ⚠ No internet and no offline recogniser available.\n"
+                    "         Install PocketSphinx for offline support: pip install pocketsphinx"
+                )
             return ""

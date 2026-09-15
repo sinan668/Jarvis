@@ -103,41 +103,16 @@ cp .env.example .env
 # Edit .env if you want to change the assistant name, log level, etc.
 ```
 
-### 6. Test voice input (recommended first step)
+"### 6. Test wake-word detection (Step 3)
 
-Run the dedicated voice test **before** starting the full assistant:
+Run the dedicated wake word test script:
 
 ```bash
-python test_voice_input.py
-```
+# Run non-interactive unit tests:
+python test_wake_word.py --unit
 
-Expected output:
-```
-────────────────────────────────────────────────────────────
-  Step 1/4 — Checking required libraries
-────────────────────────────────────────────────────────────
-  ✓ SpeechRecognition 3.17.0 imported successfully
-  ✓ PyAudio 0.2.13 imported successfully
-
-────────────────────────────────────────────────────────────
-  Step 2/4 — Listing audio input devices
-────────────────────────────────────────────────────────────
-  [0] HDA Intel PCH: ALC3246 Analog (hw:0,0)  (max 2 channels, 44100 Hz)
-  ✓ 1 input device(s) detected
-
-────────────────────────────────────────────────────────────
-  Step 3/4 — Calibrating microphone
-────────────────────────────────────────────────────────────
-  ✓ Calibrated. Energy threshold = 412
-
-────────────────────────────────────────────────────────────
-  Step 4/4 — Voice capture test (3 attempts)
-────────────────────────────────────────────────────────────
-[JARVIS] Listening...
-  ✓ [JARVIS] You said: hello jarvis
-
-  ✅ JARVIS voice input is working correctly!
-  You can now run the full assistant with:  python main.py
+# Run live interactive mic test:
+python test_wake_word.py
 ```
 
 ### 7. Run the full JARVIS assistant
@@ -146,16 +121,39 @@ Expected output:
 python main.py
 ```
 
-- **With microphone:** JARVIS automatically enters voice mode, shows `[JARVIS] Listening...`, and prints what it hears.
-- **Without microphone / missing library:** JARVIS gracefully falls back to keyboard input mode.
+**Expected Wake-Word Workflow:**
 
-Type or say `help` to list available commands. Type or say `exit` to quit.
+```
+[JARVIS] Waiting for wake word...
+
+(User says: "Hello, how are you?")  → (Ignored, stays waiting)
+
+[JARVIS] Waiting for wake word...
+
+(User says: "Jarvis")
+
+[JARVIS] Wake word detected.
+[JARVIS] Yes, I'm listening.
+
+[JARVIS] Listening...
+
+(User says: "What time is it?")
+
+[JARVIS] You said: what time is it?
+[JARVIS] It is 03:52 PM, sir.
+
+[JARVIS] Waiting for wake word...
+```
+
+- **Configuring the wake word:** Change `WAKE_WORD` in `.env` (default: `jarvis`).
+- **Text mode fallback:** If no microphone is detected, JARVIS automatically falls back to keyboard input.
+- **Ctrl+C safety:** Press `Ctrl+C` anytime to safely shut down JARVIS.
 
 ---
 
 ## 💬 Available Commands (Foundation)
 
-| What you type | What JARVIS does |
+| What you type / speak | What JARVIS does |
 |---|---|
 | `hello` / `hi` | Greets you |
 | `time` / `what time` | Tells the current time |
@@ -171,13 +169,13 @@ Type or say `help` to list available commands. Type or say `exit` to quit.
 | Step | Feature | Status |
 |------|---------|--------|
 | 1 | **Foundation** — project structure, modules, routing | ✅ Done |
-| 2 | **Voice I/O** — microphone input + TTS output | 🔜 Next |
-| 3 | **AI Brain** — free LLM (Hugging Face / DialoGPT) | 📋 Planned |
-| 4 | **Web Search** — DuckDuckGo / Wikipedia integration | 📋 Planned |
-| 5 | **App Control** — launch/close apps, system info | 📋 Planned |
-| 6 | **File Operations** — search, read, write files | 📋 Planned |
-| 7 | **Automation** — keyboard/mouse, scheduled tasks | 📋 Planned |
-| 8 | **Wake Word** — always-on "Hey JARVIS" detection | 📋 Planned |
+| 2 | **Voice Input** — microphone capture + SpeechRecognition | ✅ Done |
+| 3 | **Wake Word** — always-on "Jarvis" wake-word detection | ✅ Done |
+| 4 | **AI Brain** — free LLM (Hugging Face / DialoGPT) | 📋 Planned |
+| 5 | **Web Search** — DuckDuckGo / Wikipedia integration | 📋 Planned |
+| 6 | **App Control** — launch/close apps, system info | 📋 Planned |
+| 7 | **File Operations** — search, read, write files | 📋 Planned |
+| 8 | **Automation** — keyboard/mouse, scheduled tasks | 📋 Planned |
 
 ---
 
