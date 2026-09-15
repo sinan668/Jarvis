@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# JARVIS AI Assistant — Python Dependencies
+#
+# Install all dependencies with:
+#   pip install -r requirements.txt
+#
+# Dependencies are grouped by the feature they unlock.
+# Lines marked "[FUTURE]" are not needed yet but are listed so you know
+# what to expect in later steps.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Core / Environment ────────────────────────────────────────────────────────
+python-dotenv>=1.0.0          # Load API keys from .env file
+
+# ── Voice Input (Step 2) ──────────────────────────────────────────────────────
+# SpeechRecognition>=3.10.0   # [FUTURE] Microphone → text (Google STT, Sphinx)
+# PyAudio>=0.2.14             # [FUTURE] Microphone hardware driver
+
+# ── Voice Output (Step 2) ─────────────────────────────────────────────────────
+# pyttsx3>=2.90               # [FUTURE] Offline text-to-speech engine
+# gTTS>=2.5.0                 # [FUTURE] Online Google TTS (requires internet)
+# playsound>=1.3.0            # [FUTURE] Play audio files from disk
+
+# ── AI / LLM (Step 3) ─────────────────────────────────────────────────────────
+# openai>=1.30.0              # [FUTURE] OpenAI GPT API (requires paid key)
+# transformers>=4.40.0        # [FUTURE] Hugging Face models (free & offline)
+# torch>=2.3.0                # [FUTURE] PyTorch backend for Hugging Face
+
+# ── Web Search (Step 4) ───────────────────────────────────────────────────────
+# requests>=2.31.0            # [FUTURE] HTTP requests for web search APIs
+# beautifulsoup4>=4.12.0      # [FUTURE] HTML parsing for web scraping
+# duckduckgo-search>=5.3.0    # [FUTURE] Free DuckDuckGo search API wrapper
+
+# ── System / Automation (Step 5) ──────────────────────────────────────────────
+# psutil>=5.9.0               # [FUTURE] Process management, CPU/RAM info
+# pyautogui>=0.9.54           # [FUTURE] Mouse, keyboard, screenshot automation
+# pyperclip>=1.8.2            # [FUTURE] Cross-platform clipboard access
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+# rich>=13.7.0                # [FUTURE] Beautiful terminal output formatting
